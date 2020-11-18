@@ -1,7 +1,8 @@
 /.idea
 /__pycache__
 /venv
-*.pyc
-*.pb
 /test_imgs
 /old
+*.pyc
+*.pb
+*.log
