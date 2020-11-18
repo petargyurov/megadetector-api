@@ -64,11 +64,11 @@ class TFDetector(object):
 		self.class_tensor = detection_graph.get_tensor_by_name(
 			'detection_classes:0')
 
-	def run_detection(self, input_path, output_file=None, n_cores=0,
-					  results=None, checkpoint_path=None,
+	def run_detection(self, input_path, recursive=False, output_file=None,
+					  n_cores=0, results=None, checkpoint_path=None,
 					  checkpoint_frequency=-1):
-		image_file_names = find_images(input_path,
-									   recursive=False)  # TODO recursive
+
+		image_file_names = find_images(input_path, recursive=recursive)
 
 		if results is None:
 			results = []
@@ -85,12 +85,8 @@ class TFDetector(object):
 
 		# If we're not using multiprocessing...
 		if n_cores <= 1 or gpu_available:
-
-			# Does not count those already processed
-			count = 0
-
+			count = 0  # Does not count those already processed
 			for im_file in image_file_names:
-
 				# Will not add additional entries not in the starter checkpoint
 				if im_file in already_processed:
 					logging.info(
@@ -127,7 +123,6 @@ class TFDetector(object):
 		if output_file:
 			self.save(results, output_file)
 
-		# results may have been modified in place, but we also return it for backwards-compatibility.
 		return results
 
 	def __process_image(self, im_file):
@@ -221,7 +216,6 @@ class TFDetector(object):
 		logging.info('Loading TensorFlow graph...')
 		detection_graph = tf.Graph()
 		with detection_graph.as_default():
-			# od_graph_def = tf.GraphDef()
 			od_graph_def = tf.GraphDef()
 			with tf.io.gfile.GFile(model_path, 'rb') as fid:
 				serialized_graph = fid.read()
@@ -235,13 +229,12 @@ class TFDetector(object):
 		np_im = np.asarray(image, np.uint8)
 		im_w_batch_dim = np.expand_dims(np_im, axis=0)
 
-		# need to change the above line to the following if supporting a batch size > 1 and resizing to the same size
+		# TODO: need to change the above line to the following if supporting a batch size > 1 and resizing to the same size
 		# np_images = [np.asarray(image, np.uint8) for image in images]
 		# images_stacked = np.stack(np_images, axis=0) if len(images) > 1 else np.expand_dims(np_images[0], axis=0)
 
 		# performs inference
-		(box_tensor_out, score_tensor_out,
-		 class_tensor_out) = self.tf_session.run(
+		box_tensor_out, score_tensor_out, class_tensor_out = self.tf_session.run(
 			[self.box_tensor, self.score_tensor, self.class_tensor],
 			feed_dict={self.image_tensor: im_w_batch_dim})
 
@@ -277,9 +270,7 @@ class TFDetector(object):
 				if s > self.output_conf_threshold:
 					detection_entry = {
 						'category': str(int(c)),
-						# use string type for the numerical class label, not int
 						'conf'    : truncate_float(float(s),
-												   # cast to float for json serialization
 												   precision=self.conf_digits),
 						'bbox'    : self.__convert_coords(b)
 					}
