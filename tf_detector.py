@@ -15,9 +15,11 @@ from functools import partial
 from multiprocessing.pool import Pool as workerpool
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 
 from utils import chunk_list, find_images, load_image, truncate_float
+
+tf.disable_v2_behavior()
 
 logging.basicConfig(
 	format='%(asctime)s.%(msecs)06d: %(levelname)s - %(message)s',
@@ -52,8 +54,7 @@ class TFDetector(object):
 		}
 
 		detection_graph = self.__load_model(model_path)
-		self.tf_session = tf.compat.v1.Session(
-			graph=detection_graph)  # TODO: upgrade to latest TF API
+		self.tf_session = tf.Session(graph=detection_graph)
 
 		self.image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
 		self.box_tensor = detection_graph.get_tensor_by_name(
@@ -74,13 +75,16 @@ class TFDetector(object):
 
 		already_processed = set([i['file'] for i in results])
 
-		if n_cores > 1 and tf.test.is_gpu_available():
+		gpu_available = True if tf.config.list_physical_devices(
+			'GPU') else False
+
+		if n_cores > 1 and gpu_available:
 			logging.warning('Multiple cores requested, but a GPU is available; '
 							'parallelization across GPUs is not currently '
 							'supported, defaulting to one GPU')
 
 		# If we're not using multiprocessing...
-		if n_cores <= 1 or tf.test.is_gpu_available():
+		if n_cores <= 1 or gpu_available:
 
 			# Does not count those already processed
 			count = 0
@@ -218,7 +222,7 @@ class TFDetector(object):
 		detection_graph = tf.Graph()
 		with detection_graph.as_default():
 			# od_graph_def = tf.GraphDef()
-			od_graph_def = tf.compat.v1.GraphDef()
+			od_graph_def = tf.GraphDef()
 			with tf.io.gfile.GFile(model_path, 'rb') as fid:
 				serialized_graph = fid.read()
 				od_graph_def.ParseFromString(serialized_graph)
