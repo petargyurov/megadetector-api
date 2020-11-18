@@ -29,13 +29,15 @@ logging.basicConfig(
 class TFDetector(object):
 	"""
 	A detector model loaded at the time of initialization. It is intended to be used with
-	the MegaDetector (TF). The inference batch size is set to 1; code needs to be modified
+	the MegaDetector (TF). Th
+
+
+	e inference batch size is set to 1; code needs to be modified
 	to support larger batch sizes, including resizing appropriately.
 	"""
 
 	def __init__(self, model_path, conf_digits=3, coord_digits=4,
-				 render_conf_threshold=0.85, output_conf_threshold=0.1,
-				 batch_size=1):
+				 render_conf_threshold=0.85, output_conf_threshold=0.1):
 
 		"""Loads model from model_path and starts a tf.Session with this graph. Obtains
 		input and output tensor handles."""
@@ -43,7 +45,6 @@ class TFDetector(object):
 		# Number of decimal places to round to for confidence and bbox coordinates
 		self.conf_digits = conf_digits
 		self.coord_digits = coord_digits
-		self.batch_size = batch_size  # MegaDetector was trained with batch size of 1, and the resizing function is a part of the inference graph
 		self.render_conf_threshold = render_conf_threshold  # to render bounding boxes
 		self.output_conf_threshold = output_conf_threshold  # to include in the output json file
 
