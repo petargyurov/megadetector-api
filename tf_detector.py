@@ -5,10 +5,10 @@ The functionality of the TFDetector class remains mostly the same with the bigge
 change being that the class now has it's own method to run the model on some data.
 """
 
-
 import copy
 import itertools
 import json
+import logging
 import os
 from datetime import datetime
 from functools import partial
@@ -18,6 +18,10 @@ import numpy as np
 import tensorflow as tf
 
 from utils import chunk_list, find_images, load_image, truncate_float
+
+logging.basicConfig(
+	format='%(asctime)s.%(msecs)06d: %(levelname)s - %(message)s',
+	datefmt='%Y-%d-%m %I:%M:%S', level=logging.INFO)
 
 
 class TFDetector(object):
@@ -37,21 +41,19 @@ class TFDetector(object):
 		# Number of decimal places to round to for confidence and bbox coordinates
 		self.conf_digits = conf_digits
 		self.coord_digits = coord_digits
-
-		# MegaDetector was trained with batch size of 1, and the resizing function is a part
-		# of the inference graph
-		self.batch_size = batch_size
+		self.batch_size = batch_size  # MegaDetector was trained with batch size of 1, and the resizing function is a part of the inference graph
 		self.render_conf_threshold = render_conf_threshold  # to render bounding boxes
 		self.output_conf_threshold = output_conf_threshold  # to include in the output json file
 
 		self.label_map = {
 			'1': 'animal',
 			'2': 'person',
-			'3': 'vehicle'  # available in megadetector v4+
+			'3': 'vehicle'  # available in MegaDetector v4+
 		}
 
 		detection_graph = self.__load_model(model_path)
-		self.tf_session = tf.compat.v1.Session(graph=detection_graph)
+		self.tf_session = tf.compat.v1.Session(
+			graph=detection_graph)  # TODO: upgrade to latest TF API
 
 		self.image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
 		self.box_tensor = detection_graph.get_tensor_by_name(
@@ -73,8 +75,9 @@ class TFDetector(object):
 		already_processed = set([i['file'] for i in results])
 
 		if n_cores > 1 and tf.test.is_gpu_available():
-			print(
-				'Warning: multiple cores requested, but a GPU is available; parallelization across GPUs is not currently supported, defaulting to one GPU')
+			logging.warning('Multiple cores requested, but a GPU is available; '
+							'parallelization across GPUs is not currently '
+							'supported, defaulting to one GPU')
 
 		# If we're not using multiprocessing...
 		if n_cores <= 1 or tf.test.is_gpu_available():
@@ -86,7 +89,8 @@ class TFDetector(object):
 
 				# Will not add additional entries not in the starter checkpoint
 				if im_file in already_processed:
-					print('Bypassing image {}'.format(im_file))
+					logging.info(
+						f'Bypassing already processed image: {im_file}')
 					continue
 
 				count += 1
@@ -96,19 +100,18 @@ class TFDetector(object):
 
 				# checkpoint
 				if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
-					print(
-						'Writing a new checkpoint after having processed {} images since last restart'.format(
-							count))
+					logging.info(f'Writing a new checkpoint after having '
+								 f'processed {count} images since last restart')
 					with open(checkpoint_path, 'w') as f:
 						json.dump({'images': results}, f)
 
 		else:
 			# when using multiprocessing, let the workers load the model
-			print('Creating pool with {} cores'.format(n_cores))
+			logging.info(f'Creating pool with {n_cores} cores')
 
 			if len(already_processed) > 0:
-				print(
-					'Warning: when using multiprocessing, all images are reprocessed')
+				logging.warning(
+					'When using multiprocessing, all images are reprocessed')
 
 			pool = workerpool(n_cores)
 
@@ -127,8 +130,7 @@ class TFDetector(object):
 		try:
 			image = load_image(im_file)
 		except Exception as e:
-			print('Image {} cannot be loaded. Exception: {}'.format(
-				im_file, e))
+			logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
 			result = {
 				'file'   : im_file,
 				'failure': 'Failure image access'
@@ -139,8 +141,7 @@ class TFDetector(object):
 			result = self.generate_detections_one_image(image, im_file)
 			return result
 		except Exception as e:
-			print('Image {} cannot be processed. Exception: {}'.format(
-				im_file, e))
+			logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
 			result = {
 				'file'   : im_file,
 				'failure': 'Failure image access'
@@ -213,7 +214,7 @@ class TFDetector(object):
 
 		Returns: the loaded graph.
 		"""
-		print('TFDetector: Loading graph...')
+		logging.info('Loading TensorFlow graph...')
 		detection_graph = tf.Graph()
 		with detection_graph.as_default():
 			# od_graph_def = tf.GraphDef()
@@ -222,7 +223,7 @@ class TFDetector(object):
 				serialized_graph = fid.read()
 				od_graph_def.ParseFromString(serialized_graph)
 				tf.import_graph_def(od_graph_def, name='')
-		print('TFDetector: Detection graph loaded.')
+		logging.info('Detection graph loaded')
 
 		return detection_graph
 
@@ -289,8 +290,8 @@ class TFDetector(object):
 
 		except Exception as e:
 			result['failure'] = 'Failure TF inference'
-			print('TFDetector: image {} failed during inference: {}'.format(
-				image_id, str(e)))
+			logging.error(
+				f'Image {image_id} failed during inference. Exception: {e}')
 
 		return result
 
@@ -323,4 +324,4 @@ class TFDetector(object):
 		}
 		with open(output_file, 'w') as f:
 			json.dump(final_output, f, indent=1)
-		print('Output file saved at {}'.format(output_file))
+		logging.info(f'Output file saved at {output_file}')
