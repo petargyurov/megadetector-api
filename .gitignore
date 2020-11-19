@@ -3,6 +3,7 @@
 /venv
 /test_imgs
 /old
+/*.egg-info
 *.pyc
 *.pb
 *.log
