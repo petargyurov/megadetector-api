@@ -5,7 +5,6 @@ The functionality of the TFDetector class remains mostly the same with the bigge
 change being that the class now has it's own method to run the model on some data.
 """
 
-import click
 import copy
 import itertools
 import json
@@ -15,6 +14,7 @@ from datetime import datetime
 from functools import partial
 from multiprocessing.pool import Pool as workerpool
 
+import click
 import numpy as np
 import tensorflow.compat.v1 as tf
 
@@ -23,305 +23,306 @@ from utils import chunk_list, find_images, load_image, truncate_float
 tf.disable_v2_behavior()
 
 logging.basicConfig(
-	format='%(asctime)s.%(msecs)06d: %(levelname)s - %(message)s',
-	datefmt='%Y-%d-%m %I:%M:%S', level=logging.INFO)
+    format='%(asctime)s.%(msecs)06d: %(levelname)s - %(message)s',
+    datefmt='%Y-%d-%m %I:%M:%S', level=logging.INFO)
 
 
 class TFDetector(object):
-	"""
-	A detector model loaded at the time of initialization. It is intended to be used with
-	the MegaDetector (TF). Th
+    """
+    A detector model loaded at the time of initialization. It is intended to be used with
+    the MegaDetector (TF). Th
 
 
-	e inference batch size is set to 1; code needs to be modified
-	to support larger batch sizes, including resizing appropriately.
-	"""
+    e inference batch size is set to 1; code needs to be modified
+    to support larger batch sizes, including resizing appropriately.
+    """
 
-	def __init__(self, model_path, conf_digits=3, coord_digits=4,
-				 render_conf_threshold=0.85, output_conf_threshold=0.1):
+    def __init__(self, model_path, conf_digits=3, coord_digits=4,
+                 render_conf_threshold=0.85, output_conf_threshold=0.1):
 
-		"""Loads model from model_path and starts a tf.Session with this graph. Obtains
-		input and output tensor handles."""
+        """Loads model from model_path and starts a tf.Session with this graph. Obtains
+        input and output tensor handles."""
 
-		# Number of decimal places to round to for confidence and bbox coordinates
-		self.conf_digits = conf_digits
-		self.coord_digits = coord_digits
-		self.render_conf_threshold = render_conf_threshold  # to render bounding boxes
-		self.output_conf_threshold = output_conf_threshold  # to include in the output json file
+        # Number of decimal places to round to for confidence and bbox coordinates
+        self.conf_digits = conf_digits
+        self.coord_digits = coord_digits
+        self.render_conf_threshold = render_conf_threshold  # to render bounding boxes
+        self.output_conf_threshold = output_conf_threshold  # to include in the output json file
 
-		self.label_map = {
-			'1': 'animal',
-			'2': 'person',
-			'3': 'vehicle'  # available in MegaDetector v4+
-		}
+        self.label_map = {
+            '1': 'animal',
+            '2': 'person',
+            '3': 'vehicle'  # available in MegaDetector v4+
+        }
 
-		detection_graph = self.__load_model(model_path)
-		self.tf_session = tf.Session(graph=detection_graph)
+        detection_graph = self.__load_model(model_path)
+        self.tf_session = tf.Session(graph=detection_graph)
 
-		self.image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-		self.box_tensor = detection_graph.get_tensor_by_name(
-			'detection_boxes:0')
-		self.score_tensor = detection_graph.get_tensor_by_name(
-			'detection_scores:0')
-		self.class_tensor = detection_graph.get_tensor_by_name(
-			'detection_classes:0')
+        self.image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+        self.box_tensor = detection_graph.get_tensor_by_name(
+            'detection_boxes:0')
+        self.score_tensor = detection_graph.get_tensor_by_name(
+            'detection_scores:0')
+        self.class_tensor = detection_graph.get_tensor_by_name(
+            'detection_classes:0')
 
-	def run_detection(self, input_path, recursive=False, output_file=None,
-					  n_cores=0, results=None, checkpoint_path=None,
-					  checkpoint_frequency=-1):
+    def run_detection(self, input_path, recursive=False, output_file=None,
+                      n_cores=0, results=None, checkpoint_path=None,
+                      checkpoint_frequency=-1):
 
-		image_file_names = find_images(input_path, recursive=recursive)
+        image_file_names = find_images(input_path, recursive=recursive)
 
-		if results is None:
-			results = []
+        if results is None:
+            results = []
 
-		already_processed = set([i['file'] for i in results])
+        already_processed = set([i['file'] for i in results])
 
-		gpu_available = True if tf.config.list_physical_devices(
-			'GPU') else False
+        gpu_available = True if tf.config.list_physical_devices(
+            'GPU') else False
 
-		if n_cores > 1 and gpu_available:
-			logging.warning('Multiple cores requested, but a GPU is available; '
-							'parallelization across GPUs is not currently '
-							'supported, defaulting to one GPU')
+        if n_cores > 1 and gpu_available:
+            logging.warning('Multiple cores requested, but a GPU is available; '
+                            'parallelization across GPUs is not currently '
+                            'supported, defaulting to one GPU')
 
-		# If we're not using multiprocessing...
-		if n_cores <= 1 or gpu_available:
-			count = 0  # Does not count those already processed
-			with click.progressbar(image_file_names, label='Processing Images',
-								   fill_char='█', empty_char='-',
-								   show_pos=True, show_percent=True) as im_files:
-				for im_file in im_files:
-					# Will not add additional entries not in the starter checkpoint
-					if im_file in already_processed:
-						logging.info(
-							f'Bypassing already processed image: {im_file}')
-						continue
+        # If we're not using multiprocessing...
+        if n_cores <= 1 or gpu_available:
+            count = 0  # Does not count those already processed
+            with click.progressbar(image_file_names, label='Processing Images',
+                                   fill_char='█', empty_char='-',
+                                   show_pos=True,
+                                   show_percent=True) as im_files:
+                for im_file in im_files:
+                    # Will not add additional entries not in the starter checkpoint
+                    if im_file in already_processed:
+                        logging.info(
+                            f'Bypassing already processed image: {im_file}')
+                        continue
 
-					count += 1
+                    count += 1
 
-					result = self.__process_image(im_file)
-					results.append(result)
+                    result = self.__process_image(im_file)
+                    results.append(result)
 
-					# checkpoint
-					if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
-						logging.info(f'Writing a new checkpoint after having '
-									 f'processed {count} images since last restart')
-						with open(checkpoint_path, 'w') as f:
-							json.dump({'images': results}, f)
+                    # checkpoint
+                    if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
+                        logging.info(f'Writing a new checkpoint after having '
+                                     f'processed {count} images since last restart')
+                        with open(checkpoint_path, 'w') as f:
+                            json.dump({'images': results}, f)
 
-		else:
-			# when using multiprocessing, let the workers load the model
-			logging.info(f'Creating pool with {n_cores} cores')
+        else:
+            # when using multiprocessing, let the workers load the model
+            logging.info(f'Creating pool with {n_cores} cores')
 
-			if len(already_processed) > 0:
-				logging.warning(
-					'When using multiprocessing, all images are reprocessed')
+            if len(already_processed) > 0:
+                logging.warning(
+                    'When using multiprocessing, all images are reprocessed')
 
-			pool = workerpool(n_cores)
+            pool = workerpool(n_cores)
 
-			image_batches = list(chunk_list(image_file_names, n_cores))
-			results = pool.map(partial(self.__process_images, image_batches),
-							   image_batches)
-			results = list(itertools.chain.from_iterable(results))
+            image_batches = list(chunk_list(image_file_names, n_cores))
+            results = pool.map(partial(self.__process_images, image_batches),
+                               image_batches)
+            results = list(itertools.chain.from_iterable(results))
 
-		if output_file:
-			self.save(results, output_file)
+        if output_file:
+            self.save(results, output_file)
 
-		return results
+        return results
 
-	def __process_image(self, im_file):
-		try:
-			image = load_image(im_file)
-		except Exception as e:
-			logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
-			result = {
-				'file'   : im_file,
-				'failure': 'Failure image access'
-			}
-			return result
+    def __process_image(self, im_file):
+        try:
+            image = load_image(im_file)
+        except Exception as e:
+            logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
+            result = {
+                'file'   : im_file,
+                'failure': 'Failure image access'
+            }
+            return result
 
-		try:
-			result = self.generate_detections_one_image(image, im_file)
-			return result
-		except Exception as e:
-			logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
-			result = {
-				'file'   : im_file,
-				'failure': 'Failure image access'
-			}
-			return result
+        try:
+            result = self.generate_detections_one_image(image, im_file)
+            return result
+        except Exception as e:
+            logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
+            result = {
+                'file'   : im_file,
+                'failure': 'Failure image access'
+            }
+            return result
 
-	def __process_images(self, im_files):
-		"""Runs the MegaDetector over a list of image files.
+    def __process_images(self, im_files):
+        """Runs the MegaDetector over a list of image files.
 
-		Args
-		- im_files: list of str, paths to image files
-		- tf_detector: TFDetector (loaded model) or str (path to .pb model file)
-		- confidence_threshold: float, only detections above this threshold are returned
+        Args
+        - im_files: list of str, paths to image files
+        - tf_detector: TFDetector (loaded model) or str (path to .pb model file)
+        - confidence_threshold: float, only detections above this threshold are returned
 
-		Returns
-		- results: list of dict, each dict represents detections on one image
-			see the 'images' key in https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
-		"""
+        Returns
+        - results: list of dict, each dict represents detections on one image
+            see the 'images' key in https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
+        """
 
-		results = []
-		for im_file in im_files:
-			results.append(
-				self.__process_image(im_file))
-		return results
+        results = []
+        for im_file in im_files:
+            results.append(
+                self.__process_image(im_file))
+        return results
 
-	def __convert_coords(self, tf_coords):
-		"""Converts coordinates from the model's output format [y1, x1, y2, x2] to the
-		format used by our API and MegaDB: [x1, y1, width, height]. All coordinates
-		(including model outputs) are normalized in the range [0, 1].
+    def __convert_coords(self, tf_coords):
+        """Converts coordinates from the model's output format [y1, x1, y2, x2] to the
+        format used by our API and MegaDB: [x1, y1, width, height]. All coordinates
+        (including model outputs) are normalized in the range [0, 1].
 
-		Args:
-			tf_coords: np.array of predicted bounding box coordinates from the TF detector,
-				has format [y1, x1, y2, x2]
+        Args:
+            tf_coords: np.array of predicted bounding box coordinates from the TF detector,
+                has format [y1, x1, y2, x2]
 
-		Returns: list of Python float, predicted bounding box coordinates [x1, y1, width, height]
-		"""
-		# change from [y1, x1, y2, x2] to [x1, y1, width, height]
-		width = tf_coords[3] - tf_coords[1]
-		height = tf_coords[2] - tf_coords[0]
+        Returns: list of Python float, predicted bounding box coordinates [x1, y1, width, height]
+        """
+        # change from [y1, x1, y2, x2] to [x1, y1, width, height]
+        width = tf_coords[3] - tf_coords[1]
+        height = tf_coords[2] - tf_coords[0]
 
-		new = [tf_coords[1], tf_coords[0], width,
-			   height]  # must be a list instead of np.array
+        new = [tf_coords[1], tf_coords[0], width,
+               height]  # must be a list instead of np.array
 
-		# convert numpy floats to Python floats
-		for i, d in enumerate(new):
-			new[i] = truncate_float(float(d), precision=self.coord_digits)
-		return new
+        # convert numpy floats to Python floats
+        for i, d in enumerate(new):
+            new[i] = truncate_float(float(d), precision=self.coord_digits)
+        return new
 
-	@staticmethod
-	def convert_to_tf_coords(array):
-		"""From [x1, y1, width, height] to [y1, x1, y2, x2], where x1 is x_min, x2 is x_max
+    @staticmethod
+    def convert_to_tf_coords(array):
+        """From [x1, y1, width, height] to [y1, x1, y2, x2], where x1 is x_min, x2 is x_max
 
-		This is an extraneous step as the model outputs [y1, x1, y2, x2] but were converted to the API
-		output format - only to keep the interface of the sync API.
-		"""
-		x1 = array[0]
-		y1 = array[1]
-		width = array[2]
-		height = array[3]
-		x2 = x1 + width
-		y2 = y1 + height
-		return [y1, x1, y2, x2]
+        This is an extraneous step as the model outputs [y1, x1, y2, x2] but were converted to the API
+        output format - only to keep the interface of the sync API.
+        """
+        x1 = array[0]
+        y1 = array[1]
+        width = array[2]
+        height = array[3]
+        x2 = x1 + width
+        y2 = y1 + height
+        return [y1, x1, y2, x2]
 
-	@staticmethod
-	def __load_model(model_path):
-		"""Loads a detection model (i.e., create a graph) from a .pb file.
+    @staticmethod
+    def __load_model(model_path):
+        """Loads a detection model (i.e., create a graph) from a .pb file.
 
-		Args:
-			model_path: .pb file of the model.
+        Args:
+            model_path: .pb file of the model.
 
-		Returns: the loaded graph.
-		"""
-		logging.info('Loading TensorFlow graph...')
-		detection_graph = tf.Graph()
-		with detection_graph.as_default():
-			od_graph_def = tf.GraphDef()
-			with tf.io.gfile.GFile(model_path, 'rb') as fid:
-				serialized_graph = fid.read()
-				od_graph_def.ParseFromString(serialized_graph)
-				tf.import_graph_def(od_graph_def, name='')
-		logging.info('Detection graph loaded')
+        Returns: the loaded graph.
+        """
+        logging.info('Loading TensorFlow graph...')
+        detection_graph = tf.Graph()
+        with detection_graph.as_default():
+            od_graph_def = tf.GraphDef()
+            with tf.io.gfile.GFile(model_path, 'rb') as fid:
+                serialized_graph = fid.read()
+                od_graph_def.ParseFromString(serialized_graph)
+                tf.import_graph_def(od_graph_def, name='')
+        logging.info('Detection graph loaded')
 
-		return detection_graph
+        return detection_graph
 
-	def _generate_detections_one_image(self, image):
-		np_im = np.asarray(image, np.uint8)
-		im_w_batch_dim = np.expand_dims(np_im, axis=0)
+    def _generate_detections_one_image(self, image):
+        np_im = np.asarray(image, np.uint8)
+        im_w_batch_dim = np.expand_dims(np_im, axis=0)
 
-		# TODO: need to change the above line to the following if supporting a batch size > 1 and resizing to the same size
-		# np_images = [np.asarray(image, np.uint8) for image in images]
-		# images_stacked = np.stack(np_images, axis=0) if len(images) > 1 else np.expand_dims(np_images[0], axis=0)
+        # TODO: need to change the above line to the following if supporting a batch size > 1 and resizing to the same size
+        # np_images = [np.asarray(image, np.uint8) for image in images]
+        # images_stacked = np.stack(np_images, axis=0) if len(images) > 1 else np.expand_dims(np_images[0], axis=0)
 
-		# performs inference
-		box_tensor_out, score_tensor_out, class_tensor_out = self.tf_session.run(
-			[self.box_tensor, self.score_tensor, self.class_tensor],
-			feed_dict={self.image_tensor: im_w_batch_dim})
+        # performs inference
+        box_tensor_out, score_tensor_out, class_tensor_out = self.tf_session.run(
+            [self.box_tensor, self.score_tensor, self.class_tensor],
+            feed_dict={self.image_tensor: im_w_batch_dim})
 
-		return box_tensor_out, score_tensor_out, class_tensor_out
+        return box_tensor_out, score_tensor_out, class_tensor_out
 
-	def generate_detections_one_image(self, image, image_id):
-		"""Apply the detector to an image.
+    def generate_detections_one_image(self, image, image_id):
+        """Apply the detector to an image.
 
-		Args:
-			image: the PIL Image object
-			image_id: a path to identify the image; will be in the "file" field of the output object
-			detection_threshold: confidence above which to include the detection proposal
+        Args:
+            image: the PIL Image object
+            image_id: a path to identify the image; will be in the "file" field of the output object
+            detection_threshold: confidence above which to include the detection proposal
 
-		Returns:
-		A dict with the following fields, see the 'images' key in https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
-			- 'file' (always present)
-			- 'max_detection_conf'
-			- 'detections', which is a list of detection objects containing keys 'category', 'conf' and 'bbox'
-			- 'failure'
-		"""
-		result = {
-			'file': image_id
-		}
-		try:
-			b_box, b_score, b_class = self._generate_detections_one_image(image)
+        Returns:
+        A dict with the following fields, see the 'images' key in https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
+            - 'file' (always present)
+            - 'max_detection_conf'
+            - 'detections', which is a list of detection objects containing keys 'category', 'conf' and 'bbox'
+            - 'failure'
+        """
+        result = {
+            'file': image_id
+        }
+        try:
+            b_box, b_score, b_class = self._generate_detections_one_image(image)
 
-			# our batch size is 1; need to loop the batch dim if supporting batch size > 1
-			boxes, scores, classes = b_box[0], b_score[0], b_class[0]
+            # our batch size is 1; need to loop the batch dim if supporting batch size > 1
+            boxes, scores, classes = b_box[0], b_score[0], b_class[0]
 
-			detections_cur_image = []  # will be empty for an image with no confident detections
-			max_detection_conf = 0.0
-			for b, s, c in zip(boxes, scores, classes):
-				if s > self.output_conf_threshold:
-					detection_entry = {
-						'category': str(int(c)),
-						'conf'    : truncate_float(float(s),
-												   precision=self.conf_digits),
-						'bbox'    : self.__convert_coords(b)
-					}
-					detections_cur_image.append(detection_entry)
-					if s > max_detection_conf:
-						max_detection_conf = s
+            detections_cur_image = []  # will be empty for an image with no confident detections
+            max_detection_conf = 0.0
+            for b, s, c in zip(boxes, scores, classes):
+                if s > self.output_conf_threshold:
+                    detection_entry = {
+                        'category': str(int(c)),
+                        'conf'    : truncate_float(float(s),
+                                                   precision=self.conf_digits),
+                        'bbox'    : self.__convert_coords(b)
+                    }
+                    detections_cur_image.append(detection_entry)
+                    if s > max_detection_conf:
+                        max_detection_conf = s
 
-			result['max_detection_conf'] = truncate_float(
-				float(max_detection_conf),
-				precision=self.conf_digits)
-			result['detections'] = detections_cur_image
+            result['max_detection_conf'] = truncate_float(
+                float(max_detection_conf),
+                precision=self.conf_digits)
+            result['detections'] = detections_cur_image
 
-		except Exception as e:
-			result['failure'] = 'Failure TF inference'
-			logging.error(
-				f'Image {image_id} failed during inference. Exception: {e}')
+        except Exception as e:
+            result['failure'] = 'Failure TF inference'
+            logging.error(
+                f'Image {image_id} failed during inference. Exception: {e}')
 
-		return result
+        return result
 
-	def save(self, results, output_file, relative_path_base=None):
-		"""Writes list of detection results to JSON output file. Format matches
-		https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
+    def save(self, results, output_file, relative_path_base=None):
+        """Writes list of detection results to JSON output file. Format matches
+        https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
 
-		Args
-		- results: list of dict, each dict represents detections on one image
-		- output_file: str, path to JSON output file, should end in '.json'
-		- relative_path_base: str, path to a directory as the base for relative paths
-		"""
-		if relative_path_base is not None:
-			results_relative = []
-			for r in results:
-				r_relative = copy.copy(r)
-				r_relative['file'] = os.path.relpath(r_relative['file'],
-													 start=relative_path_base)
-				results_relative.append(r_relative)
-			results = results_relative
+        Args
+        - results: list of dict, each dict represents detections on one image
+        - output_file: str, path to JSON output file, should end in '.json'
+        - relative_path_base: str, path to a directory as the base for relative paths
+        """
+        if relative_path_base is not None:
+            results_relative = []
+            for r in results:
+                r_relative = copy.copy(r)
+                r_relative['file'] = os.path.relpath(r_relative['file'],
+                                                     start=relative_path_base)
+                results_relative.append(r_relative)
+            results = results_relative
 
-		final_output = {
-			'images'              : results,
-			'detection_categories': self.label_map,
-			'info'                : {
-				'detection_completion_time': datetime.utcnow().strftime(
-					'%Y-%m-%d %H:%M:%S'),
-				'format_version'           : '1.0'
-			}
-		}
-		with open(output_file, 'w') as f:
-			json.dump(final_output, f, indent=1)
-		logging.info(f'Output file saved at {output_file}')
+        final_output = {
+            'images'              : results,
+            'detection_categories': self.label_map,
+            'info'                : {
+                'detection_completion_time': datetime.utcnow().strftime(
+                    '%Y-%m-%d %H:%M:%S'),
+                'format_version'           : '1.0'
+            }
+        }
+        with open(output_file, 'w') as f:
+            json.dump(final_output, f, indent=1)
+        logging.info(f'Output file saved at {output_file}')

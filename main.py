@@ -4,4 +4,4 @@ model_file = 'md_v4.1.0.pb'
 tf_detector = TFDetector(model_file)
 
 results = tf_detector.run_detection(input_path='test_imgs/animals',
-									output_file='results.json')
+                                    output_file='results.json')

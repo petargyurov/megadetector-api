@@ -1,6 +1,9 @@
-import click
 import json
+
+import click
+
 from tf_detector import TFDetector
+
 
 # TODO: support for results field
 # TODO: verbose flag that controls logging output
@@ -20,32 +23,32 @@ from tf_detector import TFDetector
 @click.option('-cf', '--checkpoint-frequency', default=-1, type=str, help='How often to write to checkpoint file, i.e.: every N images')
 @click.option('--show/--no-show', default=False, help='Whether to output the results in the console')
 def detect(model_path, input_path, round_conf, round_coord, render_thresh,
-		   output_thresh, output_path, recursive, n_cores, checkpoint_path,
-		   checkpoint_frequency, show):
-
-	"""Runs detection procedure on a set of images using a given
-	   MegaDetector model.
-
-
-	   MODEL_PATH: the path of the MegaDetector model file to use
+           output_thresh, output_path, recursive, n_cores, checkpoint_path,
+           checkpoint_frequency, show):
+    """Runs detection procedure on a set of images using a given
+       MegaDetector model.
 
 
-	   INPUT_PATH: the path of the image folder
-	   """
+       MODEL_PATH: the path of the MegaDetector model file to use
 
-	tf_detector = TFDetector(model_path=model_path,
-							 conf_digits=round_conf,
-							 coord_digits=round_coord,
-							 render_conf_threshold=render_thresh,
-							 output_conf_threshold=output_thresh)
 
-	results = tf_detector.run_detection(input_path=input_path,
-										output_file=output_path,
-										recursive=recursive,
-										n_cores=n_cores,
-										results=None,
-										checkpoint_path=checkpoint_path,
-										checkpoint_frequency=checkpoint_frequency)
+       INPUT_PATH: the path of the image folder
+       """
 
-	if show:
-		click.echo_via_pager(json.dumps(r, indent=4, default=str) for r in results)
+    tf_detector = TFDetector(model_path=model_path,
+                             conf_digits=round_conf,
+                             coord_digits=round_coord,
+                             render_conf_threshold=render_thresh,
+                             output_conf_threshold=output_thresh)
+
+    results = tf_detector.run_detection(input_path=input_path,
+                                        output_file=output_path,
+                                        recursive=recursive,
+                                        n_cores=n_cores,
+                                        results=None,
+                                        checkpoint_path=checkpoint_path,
+                                        checkpoint_frequency=checkpoint_frequency)
+
+    if show:
+        click.echo_via_pager(
+            json.dumps(r, indent=4, default=str) for r in results)
