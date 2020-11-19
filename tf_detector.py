@@ -5,6 +5,7 @@ The functionality of the TFDetector class remains mostly the same with the bigge
 change being that the class now has it's own method to run the model on some data.
 """
 
+import click
 import copy
 import itertools
 import json
@@ -87,24 +88,27 @@ class TFDetector(object):
 		# If we're not using multiprocessing...
 		if n_cores <= 1 or gpu_available:
 			count = 0  # Does not count those already processed
-			for im_file in image_file_names:
-				# Will not add additional entries not in the starter checkpoint
-				if im_file in already_processed:
-					logging.info(
-						f'Bypassing already processed image: {im_file}')
-					continue
+			with click.progressbar(image_file_names, label='Processing Images',
+								   fill_char='█', empty_char='-',
+								   show_pos=True, show_percent=True) as im_files:
+				for im_file in im_files:
+					# Will not add additional entries not in the starter checkpoint
+					if im_file in already_processed:
+						logging.info(
+							f'Bypassing already processed image: {im_file}')
+						continue
 
-				count += 1
+					count += 1
 
-				result = self.__process_image(im_file)
-				results.append(result)
+					result = self.__process_image(im_file)
+					results.append(result)
 
-				# checkpoint
-				if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
-					logging.info(f'Writing a new checkpoint after having '
-								 f'processed {count} images since last restart')
-					with open(checkpoint_path, 'w') as f:
-						json.dump({'images': results}, f)
+					# checkpoint
+					if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
+						logging.info(f'Writing a new checkpoint after having '
+									 f'processed {count} images since last restart')
+						with open(checkpoint_path, 'w') as f:
+							json.dump({'images': results}, f)
 
 		else:
 			# when using multiprocessing, let the workers load the model

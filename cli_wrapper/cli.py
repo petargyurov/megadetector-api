@@ -4,7 +4,6 @@ from tf_detector import TFDetector
 
 # TODO: support for results field
 # TODO: verbose flag that controls logging output
-# TODO: progress bar
 
 
 @click.command()
