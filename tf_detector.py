@@ -17,6 +17,8 @@ from multiprocessing.pool import Pool as workerpool
 import click
 import numpy as np
 import tensorflow.compat.v1 as tf
+import viz_utils
+
 
 from utils import chunk_list, find_images, load_image, truncate_float
 
@@ -37,11 +39,16 @@ class TFDetector(object):
     to support larger batch sizes, including resizing appropriately.
     """
 
-    def __init__(self, model_path, conf_digits=3, coord_digits=4,
+    def __init__(self, model_path, output_path, conf_digits=3, coord_digits=4,
                  render_conf_threshold=0.85, output_conf_threshold=0.1):
 
         """Loads model from model_path and starts a tf.Session with this graph. Obtains
         input and output tensor handles."""
+
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        self.output_path = output_path
 
         # Number of decimal places to round to for confidence and bbox coordinates
         self.conf_digits = conf_digits
@@ -55,6 +62,24 @@ class TFDetector(object):
             '3': 'vehicle'  # available in MegaDetector v4+
         }
 
+        # make output directories for each label
+        for v in self.label_map.values():
+            label_dir = os.path.join(self.output_path, v)
+            if not os.path.exists(label_dir):
+                os.makedirs(label_dir)
+
+        # make a separate directory for empty images
+        empty_label_dir = os.path.join(self.output_path, 'empty')
+        if not os.path.exists(empty_label_dir):
+            os.makedirs(empty_label_dir)
+
+
+        # make a separate directory for images with multiple detections
+        multiple_label_dir = os.path.join(self.output_path, 'multiple')
+        if not os.path.exists(multiple_label_dir):
+            os.makedirs(multiple_label_dir)
+
+
         detection_graph = self.__load_model(model_path)
         self.tf_session = tf.Session(graph=detection_graph)
 
@@ -66,7 +91,7 @@ class TFDetector(object):
         self.class_tensor = detection_graph.get_tensor_by_name(
             'detection_classes:0')
 
-    def run_detection(self, input_path, recursive=False, output_file=None,
+    def run_detection(self, input_path, recursive=False,
                       n_cores=0, results=None, checkpoint_path=None,
                       checkpoint_frequency=-1):
 
@@ -126,8 +151,7 @@ class TFDetector(object):
                                image_batches)
             results = list(itertools.chain.from_iterable(results))
 
-        if output_file:
-            self.save(results, output_file)
+        self.save(results)
 
         return results
 
@@ -289,6 +313,35 @@ class TFDetector(object):
                 precision=self.conf_digits)
             result['detections'] = detections_cur_image
 
+            image_with_bboxes = image.copy()
+            viz_utils.render_detection_bounding_boxes(result['detections'],
+                                                      image_with_bboxes,
+                                                      label_map=self.label_map,
+                                                      confidence_threshold=self.render_conf_threshold)
+
+            # TODO: would like to improve this
+
+            # Determine which folder the image should be saved in
+            many = []
+            for d in result['detections']:
+                if d['conf'] >= self.render_conf_threshold:
+                    many.append(d['category'])
+
+            if len(result['detections']) > 1:
+                if len(many) > 1:
+                    category = 'multiple'
+                elif len(many) == 1:
+                    category = self.label_map[many[0]]
+                else:
+                    category = 'empty'
+            elif len(result['detections']) == 1 and result['detections'][0]['conf'] >= self.render_conf_threshold:
+                category = self.label_map[result['detections'][0]['category']]
+            else:
+                category = 'empty'
+
+            save_dir = os.path.join(self.output_path, category, os.path.basename(image_id))
+            image_with_bboxes.save(save_dir)
+
         except Exception as e:
             result['failure'] = 'Failure TF inference'
             logging.error(
@@ -296,7 +349,7 @@ class TFDetector(object):
 
         return result
 
-    def save(self, results, output_file, relative_path_base=None):
+    def save(self, results, relative_path_base=None):
         """Writes list of detection results to JSON output file. Format matches
         https://github.com/microsoft/CameraTraps/tree/master/api/batch_processing#batch-processing-api-output-format
 
@@ -323,6 +376,8 @@ class TFDetector(object):
                 'format_version'           : '1.0'
             }
         }
-        with open(output_file, 'w') as f:
+
+        save_dir = os.path.join(self.output_path, 'results.json')
+        with open(save_dir, 'w') as f:
             json.dump(final_output, f, indent=1)
-        logging.info(f'Output file saved at {output_file}')
+        logging.info(f'Output file saved at {save_dir}')
