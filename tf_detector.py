@@ -16,6 +16,10 @@ from multiprocessing.pool import Pool as workerpool
 
 import click
 import numpy as np
+
+import tensorflow.python.util.deprecation as deprecation
+deprecation._PRINT_DEPRECATION_WARNINGS = False
+
 import tensorflow.compat.v1 as tf
 import viz_utils
 

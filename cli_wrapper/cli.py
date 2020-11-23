@@ -1,12 +1,8 @@
+import os
 import json
-
 import click
 
-from tf_detector import TFDetector
-
-
 # TODO: support for results field
-# TODO: verbose flag that controls logging output
 
 
 @click.command()
@@ -23,9 +19,10 @@ from tf_detector import TFDetector
 @click.option('-cf', '--checkpoint-frequency', default=-1, type=str, help='How often to write to checkpoint file, i.e.: every N images')
 @click.option('--show/--no-show', default=False, help='Whether to output the results in the console')
 @click.option('--bbox/--no-bbox', default=True, help='Whether save images with bounding boxes.')
+@click.option('--verbose/--quiet', default=False, help='Whether to output or supress Tensorflow message')
 def detect(model_path, input_path, output_path, round_conf, round_coord, render_thresh,
            output_thresh, recursive, n_cores, checkpoint_path,
-           checkpoint_frequency, show, bbox):
+           checkpoint_frequency, show, bbox, verbose):
     """Runs detection procedure on a set of images using a given
        MegaDetector model.
 
@@ -38,6 +35,11 @@ def detect(model_path, input_path, output_path, round_conf, round_coord, render_
 
        OUTPUT_PATH: path in which to save bbox images and JSON summary.
        """
+
+    if not verbose:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+    from tf_detector import TFDetector
 
     tf_detector = TFDetector(model_path=model_path,
                              output_path=output_path,
