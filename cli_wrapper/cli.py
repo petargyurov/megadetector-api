@@ -22,9 +22,10 @@ from tf_detector import TFDetector
 @click.option('-cp', '--checkpoint-path', default=None, type=str, help='Path to JSON checkpoint file')
 @click.option('-cf', '--checkpoint-frequency', default=-1, type=str, help='How often to write to checkpoint file, i.e.: every N images')
 @click.option('--show/--no-show', default=False, help='Whether to output the results in the console')
+@click.option('--bbox/--no-bbox', default=True, help='Whether save images with bounding boxes.')
 def detect(model_path, input_path, output_path, round_conf, round_coord, render_thresh,
            output_thresh, recursive, n_cores, checkpoint_path,
-           checkpoint_frequency, show):
+           checkpoint_frequency, show, bbox):
     """Runs detection procedure on a set of images using a given
        MegaDetector model.
 
@@ -46,6 +47,7 @@ def detect(model_path, input_path, output_path, round_conf, round_coord, render_
                              output_conf_threshold=output_thresh)
 
     results = tf_detector.run_detection(input_path=input_path,
+                                        generate_bbox_images=bbox,
                                         recursive=recursive,
                                         n_cores=n_cores,
                                         results=None,

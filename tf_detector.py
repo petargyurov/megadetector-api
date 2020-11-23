@@ -62,24 +62,6 @@ class TFDetector(object):
             '3': 'vehicle'  # available in MegaDetector v4+
         }
 
-        # make output directories for each label
-        for v in self.label_map.values():
-            label_dir = os.path.join(self.output_path, v)
-            if not os.path.exists(label_dir):
-                os.makedirs(label_dir)
-
-        # make a separate directory for empty images
-        empty_label_dir = os.path.join(self.output_path, 'empty')
-        if not os.path.exists(empty_label_dir):
-            os.makedirs(empty_label_dir)
-
-
-        # make a separate directory for images with multiple detections
-        multiple_label_dir = os.path.join(self.output_path, 'multiple')
-        if not os.path.exists(multiple_label_dir):
-            os.makedirs(multiple_label_dir)
-
-
         detection_graph = self.__load_model(model_path)
         self.tf_session = tf.Session(graph=detection_graph)
 
@@ -91,7 +73,7 @@ class TFDetector(object):
         self.class_tensor = detection_graph.get_tensor_by_name(
             'detection_classes:0')
 
-    def run_detection(self, input_path, recursive=False,
+    def run_detection(self, input_path, generate_bbox_images=True, recursive=False,
                       n_cores=0, results=None, checkpoint_path=None,
                       checkpoint_frequency=-1):
 
@@ -126,7 +108,7 @@ class TFDetector(object):
 
                     count += 1
 
-                    result = self.__process_image(im_file)
+                    result = self.__process_image(im_file, generate_bbox_images)
                     results.append(result)
 
                     # checkpoint
@@ -148,14 +130,14 @@ class TFDetector(object):
 
             image_batches = list(chunk_list(image_file_names, n_cores))
             results = pool.map(partial(self.__process_images, image_batches),
-                               image_batches)
+                               image_batches, generate_bbox_images)
             results = list(itertools.chain.from_iterable(results))
 
         self.save(results)
 
         return results
 
-    def __process_image(self, im_file):
+    def __process_image(self, im_file, generate_bbox_images):
         try:
             image = load_image(im_file)
         except Exception as e:
@@ -167,7 +149,7 @@ class TFDetector(object):
             return result
 
         try:
-            result = self.generate_detections_one_image(image, im_file)
+            result = self.generate_detections_one_image(image, im_file, generate_bbox_images)
             return result
         except Exception as e:
             logging.error(f'Image {im_file} cannot be loaded. Exception: {e}')
@@ -177,7 +159,7 @@ class TFDetector(object):
             }
             return result
 
-    def __process_images(self, im_files):
+    def __process_images(self, im_files, generate_bbox_images):
         """Runs the MegaDetector over a list of image files.
 
         Args
@@ -193,7 +175,7 @@ class TFDetector(object):
         results = []
         for im_file in im_files:
             results.append(
-                self.__process_image(im_file))
+                self.__process_image(im_file, generate_bbox_images))
         return results
 
     def __convert_coords(self, tf_coords):
@@ -270,7 +252,7 @@ class TFDetector(object):
 
         return box_tensor_out, score_tensor_out, class_tensor_out
 
-    def generate_detections_one_image(self, image, image_id):
+    def generate_detections_one_image(self, image, image_id, generate_bbox_images):
         """Apply the detector to an image.
 
         Args:
@@ -319,28 +301,31 @@ class TFDetector(object):
                                                       label_map=self.label_map,
                                                       confidence_threshold=self.render_conf_threshold)
 
-            # TODO: would like to improve this
+            if generate_bbox_images:
+                # TODO: would like to improve this
+                # Determine which folder the image should be saved in
+                many = []
+                for d in result['detections']:
+                    if d['conf'] >= self.render_conf_threshold:
+                        many.append(d['category'])
 
-            # Determine which folder the image should be saved in
-            many = []
-            for d in result['detections']:
-                if d['conf'] >= self.render_conf_threshold:
-                    many.append(d['category'])
-
-            if len(result['detections']) > 1:
-                if len(many) > 1:
-                    category = 'multiple'
-                elif len(many) == 1:
-                    category = self.label_map[many[0]]
+                if len(result['detections']) > 1:
+                    if len(many) > 1:
+                        category = 'multiple'
+                    elif len(many) == 1:
+                        category = self.label_map[many[0]]
+                    else:
+                        category = 'empty'
+                elif len(result['detections']) == 1 and result['detections'][0]['conf'] >= self.render_conf_threshold:
+                    category = self.label_map[result['detections'][0]['category']]
                 else:
                     category = 'empty'
-            elif len(result['detections']) == 1 and result['detections'][0]['conf'] >= self.render_conf_threshold:
-                category = self.label_map[result['detections'][0]['category']]
-            else:
-                category = 'empty'
 
-            save_dir = os.path.join(self.output_path, category, os.path.basename(image_id))
-            image_with_bboxes.save(save_dir)
+                save_dir = os.path.join(self.output_path, category)
+                if not os.path.exists(save_dir):
+                    os.makedirs(save_dir)
+
+                image_with_bboxes.save(os.path.join(save_dir, os.path.basename(image_id)))
 
         except Exception as e:
             result['failure'] = 'Failure TF inference'
