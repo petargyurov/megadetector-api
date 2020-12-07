@@ -99,8 +99,10 @@ class TFDetector(object):
         # If we're not using multiprocessing...
         if n_cores <= 1 or gpu_available:
             count = 0  # Does not count those already processed
+            fill_char = click.style("█", fg="green")
+            empty_char = click.style("-", fg="green", dim=True)
             with click.progressbar(image_file_names, label='Processing Images',
-                                   fill_char='█', empty_char='-',
+                                   fill_char=fill_char, empty_char=empty_char,
                                    show_pos=True,
                                    show_percent=True) as im_files:
                 for im_file in im_files:
