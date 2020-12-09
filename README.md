@@ -67,3 +67,24 @@ unchanged.
 - refactored the class`ImagePathUtils` into a simple `utils.py` module; 
 there was no reason to have it as a class
 - moved some additional methods to `utils.py`
+
+### Building An Executable
+
+To distribute this program you can build an executable. This is particularly handy
+for use with [megadetector-gui](https://github.com/petargyurov/megadetector-gui).
+
+Steps:
+1. Clone this repo
+2. Create a virtual environment
+3. Activate the virtual environment
+4. Install requirements: `pip install -r requirements.txt`
+5. Download the MegaDetector model from [here](https://github.com/microsoft/CameraTraps/blob/master/megadetector.md#download-links)
+5. Build the .exe: `pyinstaller -F cli_wrapper/cli.py`
+
+The build process will take a bit of time. Inside the newly created `dist/` folder
+you will find `cli.exe` which can be distributed.
+
+If you plan on using the CLI often, put the `cli.exe` file somewhere more
+permanent (e.g.: `C:\Users\<user>\`) and add it to your `PATH` environment variable
+so that you can invoke it from anywhere. You still need to specify the path
+of the model file each time (something that might be made simpler in the future)
