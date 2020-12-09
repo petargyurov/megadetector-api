@@ -37,7 +37,7 @@ logging.basicConfig(
 class TFDetector(object):
     """
     A detector model loaded at the time of initialization. It is intended to be used with
-    the MegaDetector (TF). Th
+    the MegaDetector (TF).
 
 
     e inference batch size is set to 1; code needs to be modified
