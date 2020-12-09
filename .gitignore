@@ -3,7 +3,10 @@
 /venv
 /test_imgs
 /old
+/build
+/dist
 /*.egg-info
 *.pyc
 *.pb
 *.log
+*.exe

@@ -1,3 +1,4 @@
+import sys
 import os
 import json
 import click
@@ -20,9 +21,10 @@ import click
 @click.option('--show/--no-show', default=False, help='Whether to output the results in the console')
 @click.option('--bbox/--no-bbox', default=True, help='Whether save images with bounding boxes.')
 @click.option('--verbose/--quiet', default=False, help='Whether to output or supress Tensorflow message')
+@click.option('--electron/--no-electron', default=False, help='Whether we\'re calling this from Electron; stdout is handled differently')
 def detect(model_path, input_path, output_path, round_conf, round_coord, render_thresh,
            output_thresh, recursive, n_cores, checkpoint_path,
-           checkpoint_frequency, show, bbox, verbose):
+           checkpoint_frequency, show, bbox, verbose, electron):
     """Runs detection procedure on a set of images using a given
        MegaDetector model.
 
@@ -54,8 +56,13 @@ def detect(model_path, input_path, output_path, round_conf, round_coord, render_
                                         n_cores=n_cores,
                                         results=None,
                                         checkpoint_path=checkpoint_path,
-                                        checkpoint_frequency=checkpoint_frequency)
+                                        checkpoint_frequency=checkpoint_frequency,
+                                        electron=electron)
 
     if show:
         click.echo_via_pager(
             json.dumps(r, indent=4, default=str) for r in results)
+
+
+if getattr(sys, 'frozen', False):
+    detect(sys.argv[1:])

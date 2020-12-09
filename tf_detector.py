@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 from functools import partial
 from multiprocessing.pool import Pool as workerpool
-
+import sys
 import click
 import numpy as np
 
@@ -29,6 +29,7 @@ from utils import chunk_list, find_images, load_image, truncate_float
 tf.disable_v2_behavior()
 
 logging.basicConfig(
+    stream=sys.stdout,
     format='%(asctime)s.%(msecs)06d: %(levelname)s - %(message)s',
     datefmt='%Y-%d-%m %I:%M:%S', level=logging.INFO)
 
@@ -79,7 +80,7 @@ class TFDetector(object):
 
     def run_detection(self, input_path, generate_bbox_images=True, recursive=False,
                       n_cores=0, results=None, checkpoint_path=None,
-                      checkpoint_frequency=-1):
+                      checkpoint_frequency=-1, electron=False):
 
         image_file_names = find_images(input_path, recursive=recursive)
 
@@ -99,13 +100,12 @@ class TFDetector(object):
         # If we're not using multiprocessing...
         if n_cores <= 1 or gpu_available:
             count = 0  # Does not count those already processed
-            fill_char = click.style("█", fg="green")
-            empty_char = click.style("-", fg="green", dim=True)
-            with click.progressbar(image_file_names, label='Processing Images',
-                                   fill_char=fill_char, empty_char=empty_char,
-                                   show_pos=True,
-                                   show_percent=True) as im_files:
-                for im_file in im_files:
+            # Note: stylising the bar with custom characters breaks in Electron; need to investigate
+            with click.progressbar(length=len(image_file_names),
+                                   label='Processing Images',
+                                   show_pos=True, show_eta=True,
+                                   show_percent=True, info_sep='|') as bar:
+                for im_file in image_file_names:
                     # Will not add additional entries not in the starter checkpoint
                     if im_file in already_processed:
                         logging.info(
@@ -116,6 +116,11 @@ class TFDetector(object):
 
                     result = self.__process_image(im_file, generate_bbox_images)
                     results.append(result)
+                    bar.update(1)
+
+                    # this is for megadetector-gui usage
+                    if electron:
+                        print(bar.format_progress_line(), flush=True)
 
                     # checkpoint
                     if checkpoint_frequency != -1 and count % checkpoint_frequency == 0:
