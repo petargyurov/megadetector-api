@@ -15,9 +15,10 @@ to use as a script in a pipeline or to build up on and extend.
 ```python
 from tf_detector import TFDetector
 
-tf_detector = TFDetector(model_path='md_v4.1.0.pb')
+tf_detector = TFDetector(model_path='md_v4.1.0.pb', output_path='/output')
 
-results = tf_detector.run_detection(input_path='my_images', output_file='results.json')
+results = tf_detector.run_detection(input_path='test_imgs/stoats')
+
 ```
 
 ##### Example of `results.json`
@@ -48,11 +49,11 @@ results = tf_detector.run_detection(input_path='my_images', output_file='results
 
 - ✔️Simple API to expose the model and run it on images
 - ✔️Structural refactoring and code improvements
+- ✔️CLI interface
+- ✔️For GUI see [megadetector-gui](https://github.com/petargyurov/megadetector-gui) which is powered by this repo
 - **TODO:** add basic evaluation metrics to output
 - **TODO:** add proper logging functionality
 - **TODO:** add different export formats (e.g.: `.csv`)
-- **TODO:** provide a CLI wrapper
-- **TODO:** provide a GUI wrapper
 
 
 ### What's changed from the original?
@@ -60,7 +61,7 @@ results = tf_detector.run_detection(input_path='my_images', output_file='results
 For the most part, the functionality of the base `TFDetector` class remains
 unchanged.
 
-- abstracted the main class, `TFDetector`, from any CLI functionality
+- abstracted the main class, `TFDetector`, from (almost) any CLI functionality
 - the class has its own method to start detections
 - class instances can now be initialised with threshold params, amongst other things
 - refactored the class`ImagePathUtils` into a simple `utils.py` module; 
