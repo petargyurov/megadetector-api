@@ -368,6 +368,12 @@ class TFDetector(object):
             'images'              : results,
             'detection_categories': self.label_map,
             'info'                : {
+                'input_params': {
+                    'render_conf_threshold': self.render_conf_threshold,
+                    'output_conf_threshold': self.output_conf_threshold,
+                    'conf_digits': self.conf_digits,
+                    'coord_digits': self.coord_digits
+                },
                 'detection_completion_time': datetime.utcnow().strftime(
                     '%Y-%m-%d %H:%M:%S'),
                 'format_version'           : '1.0'
