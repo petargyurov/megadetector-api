@@ -337,6 +337,7 @@ class TFDetector(object):
                     os.makedirs(save_dir)
 
                 image_with_bboxes.save(os.path.join(save_dir, os.path.basename(image_id)))
+                result['preview'] = os.path.join(save_dir, os.path.basename(image_id))
 
         except Exception as e:
             result['failure'] = 'Failure TF inference'
