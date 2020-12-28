@@ -10,6 +10,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        mega-detect=cli_wrapper.cli:detect
+        mega=cli_wrapper.cli:mega
     ''',
 )

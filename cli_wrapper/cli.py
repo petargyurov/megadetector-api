@@ -3,10 +3,16 @@ import os
 import json
 import click
 
+
+@click.group()
+def mega():
+    pass
+
+
 # TODO: support for results field
 
 
-@click.command()
+@mega.command()
 @click.argument('model-path')
 @click.argument('input-path')
 @click.argument('output-path')
@@ -22,9 +28,10 @@ import click
 @click.option('--bbox/--no-bbox', default=True, help='Whether save images with bounding boxes.')
 @click.option('--verbose/--quiet', default=False, help='Whether to output or supress Tensorflow message')
 @click.option('--electron/--no-electron', default=False, help='Whether we\'re calling this from Electron; stdout is handled differently')
+@click.option('--auto-sort/--no-auto-sort', default=False, help='Whether to automatically move original images into categorised folders')
 def detect(model_path, input_path, output_path, round_conf, round_coord, render_thresh,
            output_thresh, recursive, n_cores, checkpoint_path,
-           checkpoint_frequency, show, bbox, verbose, electron):
+           checkpoint_frequency, show, bbox, verbose, electron, auto_sort):
     """Runs detection procedure on a set of images using a given
        MegaDetector model.
 
@@ -59,10 +66,40 @@ def detect(model_path, input_path, output_path, round_conf, round_coord, render_
                                         checkpoint_frequency=checkpoint_frequency,
                                         electron=electron)
 
+    if auto_sort:
+        mega(["move", os.path.join(tf_detector.output_path, 'results.json'), "--auto-sort"])
+
     if show:
         click.echo_via_pager(
             json.dumps(r, indent=4, default=str) for r in results)
 
 
+@mega.command()
+@click.argument('results_path')
+@click.option('--auto-sort/--no-auto-sort', default=False, help='Whether to automatically move original images into categorised folders')
+def move(results_path, auto_sort):
+    with open(results_path) as f:
+        results = json.load(f)
+
+    images = results['images']
+    categories = results['detection_categories']
+
+    for img in images:
+        if not img.get('reviewed') and not auto_sort:  # skip images that haven't been reviewed
+            continue
+        category = img['detections'][0]['category'] if img['detections'] else 0
+        category = categories.get(category, 'empty')
+        dest = os.path.join(os.path.dirname(img['file']), category)
+
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+
+        try:
+            # move image
+            os.rename(img['file'], os.path.join(dest, os.path.basename(img['file'])))
+        except FileNotFoundError:
+            continue
+
+
 if getattr(sys, 'frozen', False):
-    detect(sys.argv[1:])
+    mega(sys.argv[1:])
