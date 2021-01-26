@@ -116,31 +116,8 @@ def show_images_in_a_row(images):
 # The following three functions are modified versions of those at:
 # https://github.com/tensorflow/models/blob/master/research/object_detection/utils/visualization_utils.py
 
-COLORS = [
-    'AliceBlue', 'Red', 'RoyalBlue', 'Gold', 'Chartreuse', 'Aqua', 'Azure',
-    'Beige', 'Bisque', 'BlanchedAlmond', 'BlueViolet', 'BurlyWood', 'CadetBlue',
-    'AntiqueWhite', 'Chocolate', 'Coral', 'CornflowerBlue', 'Cornsilk', 'Crimson',
-    'Cyan', 'DarkCyan', 'DarkGoldenRod', 'DarkGrey', 'DarkKhaki', 'DarkOrange',
-    'DarkOrchid', 'DarkSalmon', 'DarkSeaGreen', 'DarkTurquoise', 'DarkViolet',
-    'DeepPink', 'DeepSkyBlue', 'DodgerBlue', 'FireBrick', 'FloralWhite',
-    'ForestGreen', 'Fuchsia', 'Gainsboro', 'GhostWhite', 'GoldenRod',
-    'Salmon', 'Tan', 'HoneyDew', 'HotPink', 'IndianRed', 'Ivory', 'Khaki',
-    'Lavender', 'LavenderBlush', 'LawnGreen', 'LemonChiffon', 'LightBlue',
-    'LightCoral', 'LightCyan', 'LightGoldenRodYellow', 'LightGray', 'LightGrey',
-    'LightGreen', 'LightPink', 'LightSalmon', 'LightSeaGreen', 'LightSkyBlue',
-    'LightSlateGray', 'LightSlateGrey', 'LightSteelBlue', 'LightYellow', 'Lime',
-    'LimeGreen', 'Linen', 'Magenta', 'MediumAquaMarine', 'MediumOrchid',
-    'MediumPurple', 'MediumSeaGreen', 'MediumSlateBlue', 'MediumSpringGreen',
-    'MediumTurquoise', 'MediumVioletRed', 'MintCream', 'MistyRose', 'Moccasin',
-    'NavajoWhite', 'OldLace', 'Olive', 'OliveDrab', 'Orange', 'OrangeRed',
-    'Orchid', 'PaleGoldenRod', 'PaleGreen', 'PaleTurquoise', 'PaleVioletRed',
-    'PapayaWhip', 'PeachPuff', 'Peru', 'Pink', 'Plum', 'PowderBlue', 'Purple',
-    'RosyBrown', 'Aquamarine', 'SaddleBrown', 'Green', 'SandyBrown',
-    'SeaGreen', 'SeaShell', 'Sienna', 'Silver', 'SkyBlue', 'SlateBlue',
-    'SlateGray', 'SlateGrey', 'Snow', 'SpringGreen', 'SteelBlue', 'GreenYellow',
-    'Teal', 'Thistle', 'Tomato', 'Turquoise', 'Violet', 'Wheat', 'White',
-    'WhiteSmoke', 'Yellow', 'YellowGreen'
-]
+#          none       animal     person    vehicle/other
+COLORS = ['#1b1c1d', '#21ba45', '#6435c9', '#a5673f']
 
 
 def crop_image(detections, image, confidence_threshold=0.8, expansion=0):
@@ -196,7 +173,7 @@ def crop_image(detections, image, confidence_threshold=0.8, expansion=0):
 def render_detection_bounding_boxes(detections, image,
                                     label_map={},
                                     classification_label_map={},
-                                    confidence_threshold=0.8, thickness=4, expansion=0,
+                                    confidence_threshold=0.8, thickness=10, expansion=0,
                                     classification_confidence_threshold=0.3,
                                     max_classifications=3):
     """
@@ -357,11 +334,11 @@ def draw_bounding_box_on_image(image,
                                ymax,
                                xmax,
                                clss=None,
-                               thickness=4,
+                               thickness=10,
                                expansion=0,
                                display_str_list=(),
                                use_normalized_coordinates=True,
-                               label_font_size=16):
+                               label_font_size=34):
     """
     Adds a bounding box to an image.
 
@@ -392,7 +369,8 @@ def draw_bounding_box_on_image(image,
     if clss is None:
         color = COLORS[1]
     else:
-        color = COLORS[int(clss) % len(COLORS)]
+        color_idx = len(COLORS)-1 if int(clss) >= len(COLORS) else int(clss)
+        color = COLORS[color_idx]
 
     draw = ImageDraw.Draw(image)
     im_width, im_height = image.size
