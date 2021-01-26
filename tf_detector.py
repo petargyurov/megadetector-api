@@ -4,7 +4,7 @@ Adapted from https://github.com/microsoft/CameraTraps/blob/master/detection/run_
 The functionality of the TFDetector class remains mostly the same with the biggest
 change being that the class now has it's own method to run the model on some data.
 """
-
+import uuid
 import copy
 import itertools
 import json
@@ -25,6 +25,7 @@ import viz_utils
 
 
 from utils import chunk_list, find_images, load_image, truncate_float
+from annotation_constants import detector_bbox_category_id_to_name
 
 tf.disable_v2_behavior()
 
@@ -292,7 +293,9 @@ class TFDetector(object):
             for b, s, c in zip(boxes, scores, classes):
                 if s > self.output_conf_threshold:
                     detection_entry = {
+                        'id'      : str(uuid.uuid4())[:8],
                         'category': str(int(c)),
+                        'label'   : detector_bbox_category_id_to_name[int(c)],
                         'conf'    : truncate_float(float(s),
                                                    precision=self.conf_digits),
                         'bbox'    : self.__convert_coords(b)
