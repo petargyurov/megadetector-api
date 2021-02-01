@@ -3,6 +3,8 @@ import os
 import json
 import click
 
+from utils import save_as_csv
+
 
 @click.group()
 def mega():
@@ -83,6 +85,11 @@ def move(results_path, auto_sort):
 
     images = results['images']
     categories = results['detection_categories']
+
+    try:
+        save_as_csv(images)  # TODO: this really doesn't belong here
+    except Exception:
+        pass
 
     for img in images:
         if not img.get('reviewed') and not auto_sort:  # skip images that haven't been reviewed
